@@ -114,12 +114,13 @@ def vote_leader_db(candidate, voter, up=True):  # assumes userid is valid and is
     else:
         try:
             cursor.execute(f'UPDATE users SET leader_votes = leader_votes {"+" if up else "-"} 1, register_time = register_time WHERE id = ?', (candidate,))
+            cursor.execute(f'UPDATE users SET total_leader_votes = total_leader_votes + 1, register_time = register_time WHERE id = ?', (candidate,))
         except Exception as e:
             close_db(cursor, db)
             return f'Error: {e}'
         else:
             close_db(cursor, db)
-            return 'Voted successfully!'
+            return f'Voted {"up" if up else "down"} successfully!'
 
 
 def toggle_leader_db(userid):  # assumes userid is valid
@@ -169,14 +170,14 @@ def get_stocks_db():
     db = connect_db()
     cursor = db.cursor()
     try:
-        cursor.execute(f'SELECT stocks.ticker_direction, stocks.description, stocks.votes, users.username FROM stocks, users WHERE stocks.posted_by = users.id ORDER BY stocks.votes DESC')
+        cursor.execute(f'SELECT stocks.ticker_direction, stocks.description, stocks.votes, stocks.total_votes, users.username FROM stocks, users WHERE stocks.posted_by = users.id ORDER BY stocks.votes DESC')
         results = cursor.fetchall()
     except Exception as e:
         close_db(cursor, db)
         return f'Error: {e}'
     else:
         close_db(cursor, db)
-        stocks = [{'ticker': unpack_ticker_direction(stock[0], ticker_only=True), 'direction': unpack_ticker_direction(stock[0], dir_only=True), 'description': stock[1], 'votes': stock[2], 'posted_by': stock[3]} for stock in results]
+        stocks = [{'ticker': unpack_ticker_direction(stock[0], ticker_only=True), 'direction': unpack_ticker_direction(stock[0], dir_only=True), 'description': stock[1], 'votes': stock[2], 'total_votes': stock[3], 'posted_by': stock[4]} for stock in results]
         return stocks
 
 
@@ -191,6 +192,7 @@ def vote_stock_db(ticker_direction, voter, up=True):  # assumes ticker and voter
     else:
         try:
             cursor.execute(f'UPDATE stocks SET votes = votes {"+" if up else "-"} 1 WHERE ticker_direction = ?', (ticker_direction,))
+            cursor.execute(f'UPDATE stocks SET total_votes = total_votes + 1 WHERE ticker_direction = ?', (ticker_direction,))
         except Exception as e:
             close_db(cursor, db)
             return f'Error: {e}'
