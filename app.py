@@ -11,6 +11,17 @@ server_logger.setLevel(logging.DEBUG)
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(512)
+app.debug = True
+
+
+def unpack_ticker_direction(ticker_direction, ticker_only=False, dir_only=False):
+    split = ticker_direction.split('_')
+    if ticker_only:
+        return split[0]
+    elif dir_only:
+        return split[1]
+    else:
+        return split
 
 
 def connect_db(user='root', password='root', host='127.0.0.1', port=3306, database='wallstreet-votes', autocommit=True):
@@ -126,25 +137,25 @@ def toggle_leader_db(userid):  # assumes userid is valid
         return f'{"Demoted" if user[0] else "Promoted"} {get_username(userid)}!'
 
 
-def add_stock_db(ticker, description, userid):  # assumes ticker is not added yet, and userid is a leader
+def add_stock_db(ticker, description, userid, long=True):  # assumes ticker is not added yet, and userid is a leader
     db = connect_db()
     cursor = db.cursor()
     try:
-        cursor.execute(f'INSERT INTO stocks (ticker, description, posted_by) VALUES (?, ?, ?)', (ticker, description, userid))
-        vote_stock_db(ticker, userid)
+        cursor.execute(f'INSERT INTO stocks (ticker_direction, description, posted_by) VALUES (?, ?, ?)', (ticker + '_' + ('1' if long else '0'), description, userid))
+        vote_stock_db(ticker + '_' + ('1' if long else '0'), userid)
     except Exception as e:
         close_db(cursor, db)
         return f'Error: {e}'
     else:
         close_db(cursor, db)
-        return f'Added {ticker} successfully!'
+        return f'Added {ticker} ({"long" if long else "short"}) successfully!'
 
 
-def check_stock_exists(ticker):
+def check_stock_exists(ticker_direction):
     db = connect_db()
     cursor = db.cursor()
     try:
-        cursor.execute(f'SELECT ticker FROM stocks WHERE ticker = ?', (ticker,))
+        cursor.execute(f'SELECT ticker_direction FROM stocks WHERE ticker_direction = ?', (ticker_direction,))
         stock = cursor.fetchone()
     except Exception as e:
         close_db(cursor, db)
@@ -158,34 +169,34 @@ def get_stocks_db():
     db = connect_db()
     cursor = db.cursor()
     try:
-        cursor.execute(f'SELECT stocks.ticker, stocks.description, stocks.votes, users.username FROM stocks, users WHERE stocks.posted_by = users.id ORDER BY stocks.votes DESC')
+        cursor.execute(f'SELECT stocks.ticker_direction, stocks.description, stocks.votes, users.username FROM stocks, users WHERE stocks.posted_by = users.id ORDER BY stocks.votes DESC')
         results = cursor.fetchall()
     except Exception as e:
         close_db(cursor, db)
         return f'Error: {e}'
     else:
         close_db(cursor, db)
-        stocks = [{'ticker': stock[0], 'description': stock[1], 'votes': stock[2], 'posted_by': stock[4]} for stock in results]  # skips stock[3] because it's the userid
+        stocks = [{'ticker': unpack_ticker_direction(stock[0], ticker_only=True), 'direction': unpack_ticker_direction(stock[0], dir_only=True), 'description': stock[1], 'votes': stock[2], 'posted_by': stock[3]} for stock in results]
         return stocks
 
 
-def vote_stock_db(ticker, voter, up=True):  # assumes ticker and voter is valid, assumes voter has not previously voted for this ticker
+def vote_stock_db(ticker_direction, voter, up=True):  # assumes ticker and voter is valid, assumes voter has not previously voted for this ticker
     db = connect_db()
     cursor = db.cursor()
     try:
-        cursor.execute(f'INSERT INTO stock_votes (ticker, voter, direction) VALUES (?, ?, ?)', (ticker, voter, 1 if up else -1))
+        cursor.execute(f'INSERT INTO stock_votes (ticker_direction, voter, direction) VALUES (?, ?, ?)', (ticker_direction, voter, 1 if up else -1))
     except Exception as e:
         close_db(cursor, db)
         return f'Error: {e}'
     else:
         try:
-            cursor.execute(f'UPDATE stocks SET votes = votes {"+" if up else "-"} 1 WHERE ticker = ?', (ticker,))
+            cursor.execute(f'UPDATE stocks SET votes = votes {"+" if up else "-"} 1 WHERE ticker_direction = ?', (ticker_direction,))
         except Exception as e:
             close_db(cursor, db)
             return f'Error: {e}'
         else:
             close_db(cursor, db)
-            return f'Voted {"up" if up else "down"} {ticker} successfully!'
+            return f'Voted {"up" if up else "down"} {unpack_ticker_direction(ticker_direction, ticker_only=True)} ({"long" if unpack_ticker_direction(ticker_direction, dir_only=True) else "short"}) successfully!'
 
 
 def check_leader_voted(candidate, voter):  # assumes both userid is valid, checks if voter has voted for the candidate
@@ -201,11 +212,11 @@ def check_leader_voted(candidate, voter):  # assumes both userid is valid, check
         return votes[0] if votes else False  # returns 1 or -1 or False
 
 
-def check_stock_voted(ticker, voter):  # assumes both userid and ticker is valid, checks if voter has voted for the ticker
+def check_stock_voted(ticker_direction, voter):  # assumes both userid and ticker is valid, checks if voter has voted for the ticker
     db = connect_db()
     cursor = db.cursor()
     try:
-        cursor.execute(f'SELECT direction FROM stock_votes WHERE ticker = ? AND voter = ?', (ticker, voter))
+        cursor.execute(f'SELECT direction FROM stock_votes WHERE ticker_direction = ? AND voter = ?', (ticker_direction, voter))
         votes = cursor.fetchone()
     except Exception as e:
         close_db(cursor, db)
