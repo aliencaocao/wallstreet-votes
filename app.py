@@ -14,6 +14,10 @@ app.secret_key = secrets.token_hex(512)
 app.debug = True
 
 
+def pack_ticker_direction(ticker, direction):
+    return f'{ticker}_{direction}'
+
+
 def unpack_ticker_direction(ticker_direction, ticker_only=False, dir_only=False):
     split = ticker_direction.split('_')
     if ticker_only:
@@ -138,7 +142,7 @@ def toggle_leader_db(userid):  # assumes userid is valid
         return f'{"Demoted" if user[0] else "Promoted"} {get_username(userid)}!'
 
 
-def add_stock_db(ticker, description, userid, long=True):  # assumes ticker is not added yet, and userid is a leader
+def add_stock_db(ticker, description, userid, long=True):  # assumes ticker is not added yet, and userid is a leader, assumes ticker is upper()'ed
     db = connect_db()
     cursor = db.cursor()
     try:
@@ -288,7 +292,25 @@ def home():
 @app.route('/index', methods=['GET'])
 def index():
     if session.get('logged_in', '') == gen_login_token(session):
-        return render_template('index.html')
+        stocks = get_stocks_db()
+        for stock in stocks:
+            stock['direction_text'] = 'long' if stock['direction'] else 'short'
+        return render_template('index.html', stocks=stocks)
+    else:
+        return redirect(url_for('login'))
+
+
+@app.route('/vote_stock', methods=['GET'])
+def vote_stock():
+    if session.get('logged_in', '') == gen_login_token(session):
+        ticker = request.args.get('ticker')
+        direction = int(request.args.get('direction'))
+        up = int(request.args.get('up'))
+        voter = int(session.get('userid'))
+        ticker_direction = pack_ticker_direction(ticker, direction)
+        if not check_stock_exists(ticker_direction):
+            return f'Stock {ticker} ({"long" if direction else "short"}) does not exist! <a href="{url_for("index")}">Try again</a>'
+        return vote_stock_db(ticker_direction, voter, up) + f' <a href="{url_for("index")}">Home</a>'
     else:
         return redirect(url_for('login'))
 

@@ -5,6 +5,38 @@
     <title>Wallstreet Votes - Home</title>
 </head>
 <body>
-billy is gay
+<h1>Proposed stocks</h1>
+{% if stocks %}
+    <table>
+    <tr>
+        <th>Ticker</th>
+        <th>Direction</th>
+        <th>Description</th>
+        <th>Posted by</th>
+        <th>Net Votes</th>
+        <th>Total Votes</th>
+        <th>Vote</th>
+    </tr>
+
+    {% for stock in stocks %}
+    <tr>
+        <td>{{ stock.ticker }}</td>
+        <td>{{ stock.direction_text }}</td>
+        <td>{{ stock.description }}</td>
+        <td>{{ stock.posted_by }}</td>
+        <td>{{ stock.votes }}</td>
+        <td>{{ stock.total_votes }}</td>
+        <td>
+            <a href="{{ url_for('vote_stock', ticker=stock.ticker, direction=stock.direction, up=1) }}">Vote Up</a>
+            <a href="{{ url_for('vote_stock', ticker=stock.ticker, direction=stock.direction, up=0) }}">Vote Down</a>
+        </td>
+    </tr>
+    {% endfor %}
+    </table>
+
+{% else %}
+<p>No stock proposed yet!</p>
+{% endif %}
+
 </body>
 </html>
