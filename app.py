@@ -146,8 +146,8 @@ def add_stock_db(ticker, description, userid, long=True):  # assumes ticker is n
     db = connect_db()
     cursor = db.cursor()
     try:
-        cursor.execute(f'INSERT INTO stocks (ticker_direction, description, posted_by) VALUES (?, ?, ?)', (pack_ticker_direction(ticker, 1 if long else 0), description, userid))
-        vote_stock_db(pack_ticker_direction(ticker, 1 if long else 0), userid)
+        cursor.execute(f'INSERT INTO stocks (ticker_direction, description, posted_by) VALUES (?, ?, ?)', (pack_ticker_direction(ticker, int(long)), description, userid))
+        vote_stock_db(pack_ticker_direction(ticker, int(long)), userid)
     except Exception as e:
         close_db(cursor, db)
         return f'Error: {e}'
